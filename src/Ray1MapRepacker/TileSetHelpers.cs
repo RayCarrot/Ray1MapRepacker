@@ -1,0 +1,230 @@
+﻿using BinarySerializer.Ray1.PC;
+
+public static class TileSetHelpers
+{
+    public const int TileSize = 16;
+    public const int TileDataLength = TileSize * TileSize;
+
+    public const int OpaqueBlockDataLength = 0x120;
+    public const int TransparentBlockDataLength = 0x220;
+
+    // Partially re-implemented from Rayman Designer
+    private static void CalculateTileCountsFromImgData(byte[][] scanLines, int width, int height,
+        out int opaqueBlocksCount, out int transparentBlocksCount)
+    {
+        opaqueBlocksCount = 0;
+        transparentBlocksCount = 0;
+
+        for (int y = 0; y < height; y += TileSize)
+        {
+            for (int x = 0; x < width; x += TileSize)
+            {
+                // Skip first tile
+                if (x == 0 && y == 0)
+                    continue;
+
+                int transparentPixelsCount = GetTransparentPixelsCountInBlock(scanLines, x, y);
+                
+                // Opaque
+                if (transparentPixelsCount == 0)
+                    opaqueBlocksCount++;
+                // Transparent
+                else if (transparentPixelsCount < TileDataLength)
+                    transparentBlocksCount++;
+            }
+        }
+    }
+
+    // Re-implemented from Rayman Designer
+    private static int GetTransparentPixelsCountInBlock(byte[][] scanLines, int baseX, int baseY)
+    {
+        int transparentPixelsCount = 0;
+        for (int y = 0; y < TileSize; y++)
+        {
+            for (int x = 0; x < TileSize; x++)
+            {
+                if (scanLines[baseY + y][baseX + x] == 0)
+                    transparentPixelsCount++;
+            }
+        }
+
+        return transparentPixelsCount;
+    }
+
+    /// <summary>
+    /// Converts a binary PC tile-set to PCX scan-lines
+    /// </summary>
+    /// <param name="levFile">The level file with the tile-set to convert</param>
+    /// <returns>The tile-set scan-lines</returns>
+    public static byte[][] PCBinaryTileSetToPCXScanLines(LevelFile levFile)
+    {
+        // Hard-code the size to 640x480 since that's what Rayman Designer uses and fits perfectly for 1200 tiles
+        const int tileSetWidth = 40;
+        const int tileSetHeight = 30;
+        const int tileSetPixelsWidth = tileSetWidth * TileSize;
+        const int tileSetPixelsHeight = tileSetHeight * TileSize;
+
+        // Create the scan-lines
+        byte[][] scanLines = new byte[tileSetPixelsHeight][];
+        for (int y = 0; y < tileSetPixelsHeight; y++)
+            scanLines[y] = new byte[tileSetPixelsWidth];
+
+        // Process each tile
+        foreach (TileSetBlock blockTexture in levFile.TileSetNormal.MapBlocks.OpaqueBlocks.Concat(levFile.TileSetNormal.MapBlocks.TransparentBlocks))
+        {
+            // Get the tile index from the offset array
+            long offset = blockTexture.Offset.SerializedOffset - levFile.TileSetNormal.MapBlocks.Offset.SerializedOffset;
+            int tileIndex = Array.IndexOf(levFile.TileSetNormal.BlocksOffsetTable, (uint)offset);
+            
+            // Determine the position in the tile-set
+            int tileSetX = (tileIndex % tileSetWidth) * TileSize;
+            int tileSetY = (tileIndex / tileSetWidth) * TileSize;
+
+            // Set each pixel
+            for (int y = 0; y < TileSize; y++)
+            {
+                for (int x = 0; x < TileSize; x++)
+                {
+                    scanLines[tileSetY + y][tileSetX + x] = (byte)(255 - blockTexture.ImgData[y * TileSize + x]);
+                }
+            }
+        }
+
+        return scanLines;
+    }
+
+    /// <summary>
+    /// Converts PCX scan-lines to a binary PC tile-set
+    /// </summary>
+    /// <param name="scanLines">The tile-set scan-lines</param>
+    /// <returns>The binary PC tile-set</returns>
+    public static TileSetNormal PCXScanLinesToPCBinaryTileSet(byte[][] scanLines)
+    {
+        // Partially re-implemented from Rayman Designer
+
+        // Determine the width and height from the scan-lines
+        int tileSetPixelsWidth = scanLines[0].Length;
+        int tileSetPixelsHeight = scanLines.Length;
+        int tileSetWidth = tileSetPixelsWidth / TileSize;
+        int tileSetHeight = tileSetPixelsHeight / TileSize;
+
+        // Get the tile counts
+        CalculateTileCountsFromImgData(scanLines, tileSetPixelsWidth, tileSetPixelsHeight, 
+            out int opaqueBlocksCount, out int transparentBlocksCount);
+
+        // Add one for the full transparent tile
+        opaqueBlocksCount++;
+
+        // Create arrays for the data
+        uint[] blocksOffsetTable = new uint[1200];
+        TileSetBlock[] opaqueBlocks = new TileSetBlock[opaqueBlocksCount];
+        TileSetBlock[] transparentBlocks = new TileSetBlock[transparentBlocksCount];
+
+        int blockIndex = 0;
+        int opaqueBlockIndex = 0;
+        int transparentBlockIndex = 0;
+
+        // Force first tile to be transparent
+        opaqueBlocks[opaqueBlockIndex] = new() { ImgData = new byte[TileDataLength], TransparencyMode = 0xAAAAAAAA };
+        Array.Fill(opaqueBlocks[opaqueBlockIndex].ImgData, (byte)0xFF);
+        blocksOffsetTable[blockIndex] = 0;
+        opaqueBlockIndex++;
+        blockIndex++;
+
+        // Enumerate every tile
+        for (int tileY = 0; tileY < tileSetHeight; tileY++)
+        {
+            for (int tileX = 0; tileX < tileSetWidth; tileX++)
+            {
+                // Skip first tile
+                if (tileX == 0 && tileY == 0)
+                    continue;
+
+                // Get the amount of transparent pixels in the tile
+                int transparentPixelsCount = GetTransparentPixelsCountInBlock(scanLines, tileX * TileSize, tileY * TileSize);
+
+                // Create a block if not fully transparent
+                if (transparentPixelsCount != TileDataLength)
+                {
+                    // Create a new tile block
+                    TileSetBlock block = new() { ImgData = new byte[TileDataLength], };
+                    // Opaque
+                    if (transparentPixelsCount == 0)
+                    {
+                        opaqueBlocks[opaqueBlockIndex] = block;
+                        blocksOffsetTable[blockIndex] = (uint)(opaqueBlockIndex * OpaqueBlockDataLength);
+                        opaqueBlockIndex++;
+                    }
+                    // Transparent
+                    else
+                    {
+                        block.Alpha = new byte[TileDataLength];
+                        transparentBlocks[transparentBlockIndex] = block;
+                        blocksOffsetTable[blockIndex] = (uint)(opaqueBlocksCount * OpaqueBlockDataLength + transparentBlockIndex * TransparentBlockDataLength);
+                        transparentBlockIndex++;
+                    }
+
+                    // Copy pixels and set transparency mode
+                    uint transparencyMode = 0;
+                    int imgDataIndex = 0;
+                    for (int pixelY = 0; pixelY < TileSize; pixelY++)
+                    {
+                        byte rowTransparentPixelsCount = 0;
+
+                        for (int pixelX = 0; pixelX < TileSize; pixelX++)
+                        {
+                            // Get the pixel and copy it
+                            byte pixel = scanLines[tileY * TileSize + pixelY][tileX * TileSize + pixelX];
+                            block.ImgData[imgDataIndex] = (byte)(255 - pixel);
+
+                            // Set alpha for transparent tiles
+                            if (transparentPixelsCount != 0)
+                            {
+                                if (pixel == 0)
+                                    block.Alpha[imgDataIndex] = 0;
+                                else
+                                    block.Alpha[imgDataIndex] = 0xFF;
+                            }
+
+                            if (pixel == 0)
+                                rowTransparentPixelsCount++;
+
+                            imgDataIndex++;
+                        }
+
+                        // Set the two bits for this row
+                        if (rowTransparentPixelsCount == 0)
+                            transparencyMode += 1;
+                        else if (rowTransparentPixelsCount == TileSize)
+                            transparencyMode += 2;
+                        else
+                            transparencyMode += 3;
+
+                        // Shift for the next value
+                        if (pixelY < TileSize - 1)
+                            transparencyMode <<= 2;
+                    }
+
+                    // 2 bits per row
+                    block.TransparencyMode = transparencyMode;
+                }
+
+                blockIndex++;
+            }
+        }
+
+        return new TileSetNormal()
+        {
+            BlocksOffsetTable = blocksOffsetTable,
+            TotalBlocksCount = (uint)(opaqueBlocks.Length + transparentBlocks.Length),
+            OpaqueBlocksCount = (uint)opaqueBlocks.Length,
+            MapBlocksSize = (uint)(opaqueBlocksCount * OpaqueBlockDataLength + transparentBlocksCount * TransparentBlockDataLength + 32),
+            MapBlocks = new TileSetNormalMapBlocks
+            {
+                OpaqueBlocks = opaqueBlocks,
+                TransparentBlocks = transparentBlocks,
+                UnknownBytes = new byte[32]
+            }
+        };
+    }
+}
