@@ -1,4 +1,6 @@
-﻿public static class ConsoleHelpers
+﻿namespace Ray1MapRepacker;
+
+public static class ConsoleHelpers
 {
     public static void WriteSuccess(string message)
     {

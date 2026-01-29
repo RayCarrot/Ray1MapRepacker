@@ -1,5 +1,7 @@
 ﻿using BinarySerializer.Ray1.PC;
 
+namespace Ray1MapRepacker;
+
 public static class TileSetHelpers
 {
     public const int TileSize = 16;
@@ -59,10 +61,10 @@ public static class TileSetHelpers
     public static byte[][] PCBinaryTileSetToPCXScanLines(LevelFile levFile)
     {
         // Hard-code the size to 640x480 since that's what Rayman Designer uses and fits perfectly for 1200 tiles
-        const int tileSetWidth = 40;
-        const int tileSetHeight = 30;
-        const int tileSetPixelsWidth = tileSetWidth * TileSize;
-        const int tileSetPixelsHeight = tileSetHeight * TileSize;
+        const int tileSetCountX = 40;
+        const int tileSetCountY = 30;
+        const int tileSetPixelsWidth = tileSetCountX * TileSize;
+        const int tileSetPixelsHeight = tileSetCountY * TileSize;
 
         // Create the scan-lines
         byte[][] scanLines = new byte[tileSetPixelsHeight][];
@@ -77,8 +79,8 @@ public static class TileSetHelpers
             int tileIndex = Array.IndexOf(levFile.TileSetNormal.BlocksOffsetTable, (uint)offset);
             
             // Determine the position in the tile-set
-            int tileSetX = (tileIndex % tileSetWidth) * TileSize;
-            int tileSetY = (tileIndex / tileSetWidth) * TileSize;
+            int tileSetX = (tileIndex % tileSetCountX) * TileSize;
+            int tileSetY = (tileIndex / tileSetCountX) * TileSize;
 
             // Set each pixel
             for (int y = 0; y < TileSize; y++)
