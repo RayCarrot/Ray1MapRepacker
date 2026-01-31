@@ -6,9 +6,28 @@ namespace Ray1MapRepacker;
 
 public class Exporter(Context context)
 {
-    public void ExportTileSet(LevelFile levFile, string exportDir, string tilesetNamePrefix)
+    /// <summary>
+    /// Exports the tileset PCX and map from the level to the output path.
+    /// A separate tileset PCX file is exported per available palette
+    /// </summary>
+    /// <param name="levFilePath"> Path to the lev file that should be exported. </param>
+    /// <param name="mapFileDir"> Path to the map dir, the lev data should be exported to. </param>
+    /// <param name="tilesetNamePrefix"> Name prefix for the created tileset file. </param>
+    /// <param name="mapFileName"> Name of the map file, the lev data is exported to. </param>
+    public void ExportLevel(string levFilePath, string mapFileDir, string tilesetNamePrefix, string mapFileName)
     {
-        Directory.CreateDirectory(exportDir);
+        Console.WriteLine($"Starting export process for {levFilePath}");
+    
+        LevelFile levFile = ContextHelper.ReadLevelFile(context, levFilePath);
+        ExportTileSet(levFile, mapFileDir, tilesetNamePrefix);
+        ExportMap(levFile, mapFileDir, mapFileName);
+    
+        Console.WriteLine($"Finished export process for {levFilePath}");
+    }
+    
+    private void ExportTileSet(LevelFile levFile, string mapFileDir, string tilesetNamePrefix)
+    {
+        Directory.CreateDirectory(mapFileDir);
 
         Console.WriteLine("Exporting tileset");
 
@@ -27,7 +46,7 @@ public class Exporter(Context context)
 
             // Save pcx file
             string tilesetFileName = i == 0 ? $"{tilesetNamePrefix}.pcx" : $"{tilesetNamePrefix}_{i}.pcx";
-            string pcxFilePath = Path.Combine(exportDir, tilesetFileName);
+            string pcxFilePath = Path.Combine(mapFileDir, tilesetFileName);
             context.AddFile(new LinearFile(context, pcxFilePath));
             FileFactory.Write<PCX>(context, pcxFilePath, pcx);
         }
@@ -35,7 +54,7 @@ public class Exporter(Context context)
         Console.WriteLine("Finished exporting tileset");
     }
 
-    public void ExportMap(LevelFile levFile, string exportDir, string mapName)
+    private void ExportMap(LevelFile levFile, string mapFileDir, string mapName)
     {
         Console.WriteLine("Exporting map");
 
@@ -51,7 +70,7 @@ public class Exporter(Context context)
             }).ToArray()
         };
 
-        string mapFilePath = Path.Combine(exportDir, mapName);
+        string mapFilePath = Path.Combine(mapFileDir, mapName);
         context.AddFile(new LinearFile(context, mapFilePath));
         FileFactory.Write<UniversalMap>(context, mapFilePath, map);
 

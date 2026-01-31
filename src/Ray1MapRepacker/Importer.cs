@@ -7,7 +7,29 @@ namespace Ray1MapRepacker;
 
 public class Importer(Context context)
 {
-    public void ImportTileSet(LevelFile levFile, string exportDir, string tilesetNamePrefix)
+    /// <summary>
+    /// Imports the tileset and map to the level from the input path.
+    /// Only the first tileset PCX will be used for the tiles.
+    /// The rest will only be used to import alternative palettes.
+    /// </summary>
+    /// <param name="levFilePath"> Path to the lev file that should be replaced by the import. </param>
+    /// <param name="mapFileDir"> Path to the map dir, the lev data should be imported from. </param>
+    /// <param name="tilesetNamePrefix"> Name prefix for the tileset PCX file, to import from. </param>
+    /// <param name="mapFileName"> Name of the map file, the lev data should be imported from. </param>
+    public void ImportLevel(string levFilePath, string mapFileDir, string tilesetNamePrefix, string mapFileName)
+    {
+        Console.WriteLine($"Starting import process for {levFilePath}");
+
+        LevelFile levFile = ContextHelper.ReadLevelFile(context, levFilePath);
+        ImportTileSet(levFile, mapFileDir, tilesetNamePrefix);
+        ImportMap(levFile, mapFileDir, mapFileName);
+        UpdateMapTileRenderModes(levFile);
+        SaveFile(levFilePath, levFile);
+    
+        Console.WriteLine($"Finished import process for  {levFilePath}");
+    }
+
+    private void ImportTileSet(LevelFile levFile, string mapFileDir, string tilesetNamePrefix)
     {
         Console.WriteLine("Importing tileset");
 
@@ -15,7 +37,7 @@ public class Importer(Context context)
         for (int i = 0; i < 3; i++)
         {
             string tileSetFileName = i == 0 ? $"{tilesetNamePrefix}.pcx" : $"{tilesetNamePrefix}_{i}.pcx";
-            string pcxFilePath = Path.Combine(exportDir, tileSetFileName);
+            string pcxFilePath = Path.Combine(mapFileDir, tileSetFileName);
 
             if (!File.Exists(pcxFilePath))
             {
@@ -41,11 +63,11 @@ public class Importer(Context context)
         Console.WriteLine("Finished importing tileset");
     }
 
-    public void ImportMap(LevelFile levFile, string exportDir, string mapName)
+    private void ImportMap(LevelFile levFile, string mapFileDir, string mapName)
     {
         Console.WriteLine("Importing map");
 
-        string mapFilePath = Path.Combine(exportDir, mapName);
+        string mapFilePath = Path.Combine(mapFileDir, mapName);
         context.AddFile(new LinearFile(context, mapFilePath));
         UniversalMap map = FileFactory.Read<UniversalMap>(context, mapFilePath);
 
@@ -60,7 +82,7 @@ public class Importer(Context context)
         Console.WriteLine("Finished importing map");
     }
 
-    public void UpdateMapTileRenderModes(LevelFile levFile)
+    private void UpdateMapTileRenderModes(LevelFile levFile)
     {
         Console.WriteLine("Updating map tile render modes");
         foreach (Block block in levFile.MapInfo.Blocks)
@@ -80,7 +102,7 @@ public class Importer(Context context)
         Console.WriteLine("Finished updating map tile render modes");
     }
 
-    public void SaveFile(string levFilePath, LevelFile levFile)
+    private void SaveFile(string levFilePath, LevelFile levFile)
     {
         Console.WriteLine("Saving level file");
         FileFactory.Write<LevelFile>(context, levFilePath, levFile);
