@@ -38,21 +38,22 @@ if (mode is not ("-e" or "-i") || !File.Exists(levFilePath))
 // Create the context
 using Context context = ContextHelper.CreateDefaultContext();
 
-// Read the level
-
 // Export
 if (mode == "-e")
 {
-    new Exporter(context).ExportLevel(levFilePath, mapFileDir, TileSetFileNamePrefix, MapFileName);
+    Exporter exporter = new(context);
+    exporter.ExportLevel(levFilePath, mapFileDir, TileSetFileNamePrefix, MapFileName);
 }
 // Import
 else if (mode == "-i")
 {
-    new Importer(context).ImportLevel(levFilePath, mapFileDir, TileSetFileNamePrefix, MapFileName);
+    Importer importer = new(context);
+    importer.ImportLevel(levFilePath, mapFileDir, TileSetFileNamePrefix, MapFileName);
 }
 else
 {
     ShowHelpScreen();
+    return;
 }
 
 ConsoleHelpers.WriteSuccess("Complete");

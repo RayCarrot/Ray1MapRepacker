@@ -85,6 +85,7 @@ public class Importer(Context context)
     private void UpdateMapTileRenderModes(LevelFile levFile)
     {
         Console.WriteLine("Updating map tile render modes");
+
         foreach (Block block in levFile.MapInfo.Blocks)
         {
             // NOTE: Opaque and fully transparent are flipped in the file data!
@@ -99,6 +100,7 @@ public class Importer(Context context)
                 block.RenderMode = isOpaque ? Block.BlockRenderMode.FullyTransparent : Block.BlockRenderMode.Transparent;
             }
         }
+
         Console.WriteLine("Finished updating map tile render modes");
     }
 

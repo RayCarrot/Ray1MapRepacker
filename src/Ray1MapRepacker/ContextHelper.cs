@@ -6,7 +6,7 @@ namespace Ray1MapRepacker;
 
 public static class ContextHelper
 {
-    const string SerializerLogFilePath = "SerializerLog.txt";
+    private const string SerializerLogFilePath = "SerializerLog.txt";
     
     public static Context CreateDefaultContext()
     {
@@ -25,9 +25,8 @@ public static class ContextHelper
     {
         // Read the level
         if (!context.FileExists(levFilePath))
-        {
             context.AddFile(new LinearFile(context, levFilePath));
-        }
+
         return FileFactory.Read<LevelFile>(context, levFilePath);
     }
 }
