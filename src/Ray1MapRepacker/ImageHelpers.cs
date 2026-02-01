@@ -1,6 +1,8 @@
 ﻿using BinarySerializer;
 using BinarySerializer.Image;
 
+namespace Ray1MapRepacker;
+
 public static class ImageHelpers
 {
     /// <summary>

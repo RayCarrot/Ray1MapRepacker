@@ -26,7 +26,7 @@ Make sure to keep a backup of the files before modifying them!
 After extracting you will end up with the following files:
 
 - **LevelMap.map**: This is the map, stored in the same format as Rayman Designer stores its `EVENT.MAP` files. This means you can copy the files back and forth between them.
-- **TileSet1.pcx**, **TileSet2.pcx** & **TileSet3.pcx**: This is the tileset, stored as a PCX image file. There are 3 separate versions because levels can have 3 separate palettes. So while the tiles are the same across each file they will each use one of the available palettes.
+- **TileSet.pcx**, **TileSet_1.pcx** & **TileSet_2.pcx**: This is the tileset, stored as a PCX image file. There are 3 separate versions because levels can have 3 separate palettes. So while the tiles are the same across each file they will each use one of the available palettes.
 
 To edit the map you can replace a custom map in Rayman Designer with it and edit it using the Mapper. Alternatively [Ray1Editor](https://github.com/RayCarrot/Ray1Editor) can be used to edit levels.
 
@@ -38,6 +38,6 @@ When importing the modified PCX file it will only use the first one to get the t
 
 ### Memory error
 
-If the game crashes with the error `Memory error in block_malloc` when loading a modified level then it's most likely because the level is too big to fit into the game's memory. This can be resolved by increasing the memory pool in the game. For this you first need to decompress the exe, then you can edit it with a hex editor by searching for the bytes `00 7C 08 00` and replacing them with a higher value. For example you can double it to `00 F8 10 00`.
+If the game crashes with the error `Memory error in block_malloc` when loading a modified level then it's most likely because the level is too big to fit into the game's memory. This can be resolved by increasing the memory pool in the game. For this you first need to decompress the exe, then you can edit it with a hex editor by searching for the bytes `00 7C 08 00` and replacing them with a higher value. For example, you can double it to `00 F8 10 00`.
 
 If you come across any other issues then please let me know!
