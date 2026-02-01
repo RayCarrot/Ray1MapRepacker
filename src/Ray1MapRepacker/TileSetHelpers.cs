@@ -1,9 +1,14 @@
-﻿using BinarySerializer.Ray1.PC;
+﻿using System.Text;
+using BinarySerializer;
+using BinarySerializer.Image;
+using BinarySerializer.Ray1.PC;
 
 namespace Ray1MapRepacker;
 
 public static class TileSetHelpers
 {
+    private const ushort NonMatchingBlockNumber = ushort.MaxValue;
+    
     public const int TileSize = 16;
     public const int TileDataLength = TileSize * TileSize;
 
@@ -228,5 +233,191 @@ public static class TileSetHelpers
                 UnknownBytes = new byte[32]
             }
         };
+    }
+
+    public static ushort[][] CreateTileSetIndexMaps(LevelFile levelFile, PCX pcx)
+    {
+        // Get PCX palette
+        RGB666Color[] palettePCX = ImageHelpers.ConvertPal888To666(pcx.VGAPalette);
+        palettePCX[0] = new RGB666Color(0, 0, 0);
+
+        // Create palette mapping
+        byte[][] colorIndexMap = CreateColorPaletteIndexMap(levelFile.MapInfo.Palettes, palettePCX);
+        
+        TileSetNormalMapBlocks targetBlocks = PCXScanLinesToPCBinaryTileSet(pcx.ScanLines).MapBlocks;
+
+        ushort[] opaqueMap =
+            CreateTileSetIndexMap(colorIndexMap, levelFile.TileSetNormal.MapBlocks.OpaqueBlocks, targetBlocks.OpaqueBlocks);
+        ushort[] transparentMap =
+            CreateTileSetIndexMap(colorIndexMap, levelFile.TileSetNormal.MapBlocks.TransparentBlocks, targetBlocks.TransparentBlocks);
+
+        return new ushort[][]
+        {
+            opaqueMap,
+            transparentMap
+        };
+    }
+
+    private static ushort[] CreateTileSetIndexMap(byte[][] colorIndexMap, TileSetBlock[] sourceBlocks, TileSetBlock[] targetBlocks)
+    {
+        TileSetBlock[][] alteredSourceBlocks = CreateAlteredTileSetBlocksByPaletteIndexMap(colorIndexMap, sourceBlocks);
+        
+        ushort[] indexMapping = [];
+        for (ushort paletteIndex = 0; paletteIndex < alteredSourceBlocks.Length; paletteIndex++)
+        {
+            indexMapping = CreateTileSetIndexMap(alteredSourceBlocks[paletteIndex], targetBlocks, indexMapping);
+        }
+
+        return CleanNonMatchingBlockIndices(indexMapping);
+    }
+
+
+    // Map all indices of the lev file palettes onto the PCX palette, to allow a comparison between tiles later on
+    private static byte[][] CreateColorPaletteIndexMap(RGB666Color[][] palettesLevel, RGB666Color[] palettePCX)
+    {
+        if(palettesLevel.Length == 0 || palettePCX.Length == 0)
+            return [];
+        
+        // Create a mapping for every palette in the level
+        byte[][] indexMap = new byte[palettesLevel.Length][];
+        for (ushort palIndex = 0; palIndex < palettesLevel.Length; palIndex++)
+        {
+            RGB666Color[] palette = palettesLevel[palIndex];
+            // Handle empty palette
+            if (palettePCX.Length == 0)
+            {
+                indexMap[palIndex] = [];
+                continue;
+            }
+            
+            // Map every palette color index onto one of the PCX palette
+            indexMap[palIndex] = new byte[palette.Length];
+            for (ushort colorIndex = 0; colorIndex != palette.Length; colorIndex++)
+            {
+                RGB666Color currentColor = palette[colorIndex];
+                byte index = (byte) Math.Min(palette.Length - 1, Math.Max(0, Array.FindIndex(palettePCX, c => CompareColorsFuzzy(currentColor, c))));
+                Console.WriteLine($"mapping colorIndex {colorIndex}->{index} with color: {currentColor}->{palettePCX[index]}");
+
+                indexMap[palIndex][colorIndex] = index;
+            }
+        }
+        
+        return indexMap;
+    }
+
+    private static bool CompareColorsFuzzy(RGB666Color color0, RGB666Color color1) // TODO maybe start without threshold and increase it in multiple iterations, for those colors still pointing to index 0
+    {
+        const float threshold = 0.016f;
+        return Math.Abs(color0.Red - color1.Red) <= threshold
+            && Math.Abs(color0.Green - color1.Green) <= threshold
+            && Math.Abs(color0.Blue - color1.Blue) <= threshold;
+    }
+        
+    private static TileSetBlock[][] CreateAlteredTileSetBlocksByPaletteIndexMap(byte[][] paletteIndexMap, TileSetBlock[] sourceBlocks)
+    {
+        if (paletteIndexMap.Length == 0 || sourceBlocks.Length == 0)
+            return [];
+        
+        
+        TileSetBlock[][] alteredBlocks = new TileSetBlock[paletteIndexMap.Length][];
+
+        for (ushort paletteIndex = 0; paletteIndex < paletteIndexMap.Length; paletteIndex++)
+        {
+            alteredBlocks[paletteIndex] = CreateAlteredTileSetBlocksByPaletteIndexMap(paletteIndexMap[paletteIndex], sourceBlocks);
+        }
+        
+        return alteredBlocks;
+    }
+    
+    private static TileSetBlock[] CreateAlteredTileSetBlocksByPaletteIndexMap(byte[] paletteIndexMap, TileSetBlock[] sourceBlocks)
+    {
+        if (paletteIndexMap.Length == 0)
+            return [];
+        
+        TileSetBlock[] alteredBlocks = new TileSetBlock[sourceBlocks.Length];
+
+        for (ushort blockIndex = 0; blockIndex < sourceBlocks.Length; blockIndex++)
+        {
+            TileSetBlock sourceBlock = sourceBlocks[blockIndex];
+            
+            TileSetBlock alteredBlock = new TileSetBlock
+            {
+                ImgData = new byte[sourceBlock.ImgData.Length],
+                Pre_HasAlpha = sourceBlock.Pre_HasAlpha,
+                TransparencyMode = sourceBlock.TransparencyMode,
+                UnkownBytes = (byte[]) sourceBlock.UnkownBytes.Clone(),
+                Alpha = (byte[])sourceBlock.Alpha?.Clone()!
+            };
+
+            for (ushort pixelIndex = 0; pixelIndex < sourceBlock.ImgData.Length; pixelIndex++)
+            {
+                alteredBlock.ImgData[pixelIndex] = paletteIndexMap[sourceBlock.ImgData[pixelIndex]];
+            }
+            alteredBlocks[blockIndex] = alteredBlock;
+        }
+        
+        return alteredBlocks;
+    }
+
+    private static ushort[] CreateTileSetIndexMap(TileSetBlock[] alteredSourceBlocks,
+        TileSetBlock[] targetBlocks, ushort[] indexMapping)
+    {
+        if (alteredSourceBlocks.Length == 0 || targetBlocks.Length == 0)
+            return indexMapping;
+        
+        int sourceLength = alteredSourceBlocks.Length;
+        int targetLength = targetBlocks.Length;
+
+        if (indexMapping.Length == 0)
+        {
+            indexMapping = new ushort[sourceLength];
+            Array.Fill<ushort>(indexMapping, NonMatchingBlockNumber);
+        }
+        
+        for (ushort sourceIndex = 0; sourceIndex < sourceLength; sourceIndex++)
+        {
+            if (indexMapping[sourceIndex] != NonMatchingBlockNumber)
+            {
+                continue;
+            }
+            
+            byte[] sourceBlockImgData = alteredSourceBlocks[sourceIndex].ImgData;
+            for (ushort targetIndex = 0; targetIndex < targetLength; targetIndex++)
+            { // TODO seems to still have way to less hits. Maybe the colors require adjustment, or here is something wrong
+                byte[] targetBlockImgData = targetBlocks[targetIndex].ImgData;
+                if (sourceBlockImgData.SequenceEqual(targetBlockImgData))
+                {
+                    indexMapping[sourceIndex] = targetIndex;
+                    
+                    break;
+                }
+            }
+        }
+        
+        return indexMapping;
+    }
+
+    private static ushort[] CleanNonMatchingBlockIndices(ushort[] indexMapping)
+    {
+        StringBuilder stringBuilder = new StringBuilder();
+        int sourceLength = indexMapping.Length;
+        int count = 0;
+        
+        for (ushort sourceIndex = 0; sourceIndex < sourceLength; sourceIndex++)
+        {
+            if (indexMapping[sourceIndex] == NonMatchingBlockNumber)
+            {
+                count++;
+                stringBuilder.Append(sourceIndex).Append(", ");
+
+                indexMapping[sourceIndex] = 0;
+            }
+        }
+        stringBuilder.Remove(stringBuilder.Length - 2, 2);
+
+        if (count > 0)
+            ConsoleHelpers.WriteWarning($"No tileset match found for {count} opaque block indices: {stringBuilder}!");
+        
+        return indexMapping;
     }
 }

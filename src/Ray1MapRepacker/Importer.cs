@@ -14,9 +14,9 @@ public class Importer(Context context)
     /// </summary>
     /// <param name="levFilePath"> Path to the lev file that should be replaced by the import. </param>
     /// <param name="mapFileDir"> Path to the map dir, the lev data should be imported from. </param>
-    /// <param name="tilesetNamePrefix"> Name prefix for the tileset PCX file, to import from. </param>
     /// <param name="mapFileName"> Name of the map file, the lev data should be imported from. </param>
-    public void ImportLevel(string levFilePath, string mapFileDir, string tilesetNamePrefix, string mapFileName)
+    /// <param name="tilesetNamePrefix"> Name prefix for the tileset PCX file, to import from. </param>
+    public void ImportLevel(string levFilePath, string mapFileDir, string mapFileName, string tilesetNamePrefix)
     {
         Console.WriteLine($"Starting import process for {levFilePath}");
 

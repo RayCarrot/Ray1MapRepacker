@@ -12,6 +12,8 @@ void ShowHelpScreen()
                       "Usage:\n" +
                       "  -e <level-path> <output-path> | Exports the tileset and map from the level to the output path.\n" +
                       "                                  A separate tileset PCX file is exported per available palette.\n" +
+                      "     <tile-set-path>            | In addition, a tileset path to an existing PCX file can be attached\n" +
+                      "                                  to avoid exporting the tileset, but forcing the map to use the existing one.\n" +
                       "  -i <level-path> <input-path>  | Imports the tileset and map to the level from the input path.\n" +
                       "                                  The files have to be named the same as when exporting. Only the\n" +
                       "                                  first tileset PCX will be used for the tiles. The rest will only\n" +
@@ -19,7 +21,7 @@ void ShowHelpScreen()
 }
 
 // Parse args
-if (args.Length != 3)
+if (args.Length is < 3 or > 4)
 {
     ShowHelpScreen();
     return;
@@ -43,12 +45,20 @@ using Context context = ContextHelper.CreateDefaultContext();
 // Export
 if (mode == "-e")
 {
-    new Exporter(context).ExportLevel(levFilePath, mapFileDir, TileSetFileNamePrefix, MapFileName);
+    if (args.Length > 3)
+    {
+        string tileSetPathPCX = args[3];
+        new Exporter(context).ExportLevelForceUsingTileSet(levFilePath, mapFileDir, MapFileName, tileSetPathPCX);
+    }
+    else
+    {
+        new Exporter(context).ExportLevel(levFilePath, mapFileDir, MapFileName, TileSetFileNamePrefix);
+    }
 }
 // Import
 else if (mode == "-i")
 {
-    new Importer(context).ImportLevel(levFilePath, mapFileDir, TileSetFileNamePrefix, MapFileName);
+    new Importer(context).ImportLevel(levFilePath, mapFileDir, MapFileName, TileSetFileNamePrefix);
 }
 else
 {
