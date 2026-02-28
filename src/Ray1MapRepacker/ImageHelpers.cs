@@ -39,6 +39,87 @@ public static class ImageHelpers
         return pal666;
     }
 
+
+    // Map all indices of the lev file palettes onto the PCX palette, to allow a comparison between tiles later on
+    public static byte[][] CreateColorPaletteIndexMap(RGB666Color[][] palettesLevel, RGB666Color[] palettePCX)
+    {
+        if(palettesLevel.Length == 0 || palettePCX.Length == 0)
+            return [];
+        
+        // Create a mapping for every palette in the level
+        byte[][] indexMap = new byte[palettesLevel.Length][];
+        for (ushort palIndex = 0; palIndex < palettesLevel.Length; palIndex++)
+        {
+            RGB666Color[] palette = palettesLevel[palIndex];
+            HashSet<ushort> zeroMappings = [];
+            // Handle empty palette
+            if (palettePCX.Length == 0)
+            {
+                indexMap[palIndex] = [];
+                continue;
+            }
+            
+            // Map every palette color index onto one of the PCX palette
+            indexMap[palIndex] = new byte[palette.Length];
+            for (ushort colorIndex = 0; colorIndex != palette.Length; colorIndex++)
+            {
+                RGB666Color currentColor = palette[colorIndex];
+                int index = Array.FindIndex(palettePCX, c => CompareColorsFuzzy(currentColor, c, 0f));
+                byte clampedIndex = (byte) Math.Min(palette.Length - 1, Math.Max(0, index));
+
+                if (index != -1)
+                    Console.WriteLine($"mapping colorIndex {colorIndex}->{clampedIndex} with color: {currentColor}->{palettePCX[clampedIndex]}");
+
+                if (index == -1)
+                    zeroMappings.Add(colorIndex);
+                
+                indexMap[palIndex][colorIndex] = clampedIndex;
+            }
+
+
+            if (zeroMappings.Count != 0)
+                Console.WriteLine($"mapped {palette.Length - zeroMappings.Count} of {palette.Length} without threshold ({zeroMappings.Count} invalid) for palette {palIndex}");
+            
+            const float startThreshold = 0.008f; // rounding errors are at around 0.016f
+            const float baseThreshold = 0.004f; // lower value => higher accuracy - 0.004f is around value 1 difference in RGBA value
+            const byte maxIterationCount = 32;  // higher value => more mapping hits, but larger color differences in mapping possible and longer processing time
+            // => up to RGB value difference for each color value of 34 is possible with startThreshold = 0.008f, baseThreshold = 0.004f and maxIterationCount = 32
+            for (byte thresholdIteration = 0; thresholdIteration < maxIterationCount; thresholdIteration++)
+            {
+                if (zeroMappings.Count == 0)
+                    break;
+                
+                ushort[] currentZeroMappings = zeroMappings.ToArray();
+                
+                foreach (ushort colorIndex in currentZeroMappings)
+                {
+                    RGB666Color currentColor = palette[colorIndex];
+                    float threshold = startThreshold + (thresholdIteration * baseThreshold);
+                    
+                    int index = Array.FindIndex(palettePCX, c => CompareColorsFuzzy(currentColor, c, threshold));
+                    if (index != -1)
+                    {
+                        zeroMappings.Remove(colorIndex);
+                        byte clampedIndex = (byte) Math.Min(palette.Length - 1, Math.Max(0, index));
+                        Console.WriteLine($"retried mapping colorIndex {colorIndex}->{index} with color: {currentColor}->{palettePCX[index]} in iteration {thresholdIteration}");
+                        indexMap[palIndex][colorIndex] = clampedIndex;
+                    }
+                }
+            }
+            
+            Console.WriteLine($"mapped {palette.Length - zeroMappings.Count} of {palette.Length} ({zeroMappings.Count} invalid) for palette {palIndex}");
+        }
+        
+        return indexMap;
+    }
+
+    private static bool CompareColorsFuzzy(RGB666Color color0, RGB666Color color1, float threshold)
+    {
+        return Math.Abs(color0.Red - color1.Red) <= threshold
+            && Math.Abs(color0.Green - color1.Green) <= threshold
+            && Math.Abs(color0.Blue - color1.Blue) <= threshold;
+    }
+
     /// <summary>
     /// Creates a new PCX instance from image data
     /// </summary>

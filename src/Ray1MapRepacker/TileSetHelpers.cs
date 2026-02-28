@@ -242,7 +242,7 @@ public static class TileSetHelpers
         palettePCX[0] = new RGB666Color(0, 0, 0);
 
         // Create palette mapping
-        byte[][] colorIndexMap = CreateColorPaletteIndexMap(levelFile.MapInfo.Palettes, palettePCX);
+        byte[][] colorIndexMap = ImageHelpers.CreateColorPaletteIndexMap(levelFile.MapInfo.Palettes, palettePCX);
         
         TileSetNormalMapBlocks targetBlocks = PCXScanLinesToPCBinaryTileSet(pcx.ScanLines).MapBlocks;
 
@@ -269,48 +269,6 @@ public static class TileSetHelpers
         }
 
         return CleanNonMatchingBlockIndices(indexMapping);
-    }
-
-
-    // Map all indices of the lev file palettes onto the PCX palette, to allow a comparison between tiles later on
-    private static byte[][] CreateColorPaletteIndexMap(RGB666Color[][] palettesLevel, RGB666Color[] palettePCX)
-    {
-        if(palettesLevel.Length == 0 || palettePCX.Length == 0)
-            return [];
-        
-        // Create a mapping for every palette in the level
-        byte[][] indexMap = new byte[palettesLevel.Length][];
-        for (ushort palIndex = 0; palIndex < palettesLevel.Length; palIndex++)
-        {
-            RGB666Color[] palette = palettesLevel[palIndex];
-            // Handle empty palette
-            if (palettePCX.Length == 0)
-            {
-                indexMap[palIndex] = [];
-                continue;
-            }
-            
-            // Map every palette color index onto one of the PCX palette
-            indexMap[palIndex] = new byte[palette.Length];
-            for (ushort colorIndex = 0; colorIndex != palette.Length; colorIndex++)
-            {
-                RGB666Color currentColor = palette[colorIndex];
-                byte index = (byte) Math.Min(palette.Length - 1, Math.Max(0, Array.FindIndex(palettePCX, c => CompareColorsFuzzy(currentColor, c))));
-                Console.WriteLine($"mapping colorIndex {colorIndex}->{index} with color: {currentColor}->{palettePCX[index]}");
-
-                indexMap[palIndex][colorIndex] = index;
-            }
-        }
-        
-        return indexMap;
-    }
-
-    private static bool CompareColorsFuzzy(RGB666Color color0, RGB666Color color1) // TODO maybe start without threshold and increase it in multiple iterations, for those colors still pointing to index 0
-    {
-        const float threshold = 0.016f;
-        return Math.Abs(color0.Red - color1.Red) <= threshold
-            && Math.Abs(color0.Green - color1.Green) <= threshold
-            && Math.Abs(color0.Blue - color1.Blue) <= threshold;
     }
         
     private static TileSetBlock[][] CreateAlteredTileSetBlocksByPaletteIndexMap(byte[][] paletteIndexMap, TileSetBlock[] sourceBlocks)
