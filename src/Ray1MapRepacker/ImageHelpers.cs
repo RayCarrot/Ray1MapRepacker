@@ -46,6 +46,10 @@ public static class ImageHelpers
         if(palettesLevel.Length == 0 || palettePCX.Length == 0)
             return [];
         
+        RGB666Color black = new RGB666Color(0f, 0f, 0f);
+        RGB666Color white = new RGB666Color(1f, 1f, 1f);
+        
+        
         // Create a mapping for every palette in the level
         byte[][] indexMap = new byte[palettesLevel.Length][];
         for (ushort palIndex = 0; palIndex < palettesLevel.Length; palIndex++)
@@ -61,10 +65,17 @@ public static class ImageHelpers
             
             // Map every palette color index onto one of the PCX palette
             indexMap[palIndex] = new byte[palette.Length];
-            for (ushort colorIndex = 0; colorIndex != palette.Length; colorIndex++)
+            for (ushort colorIndex = 100; colorIndex != palette.Length; colorIndex++)
             {
                 RGB666Color currentColor = palette[colorIndex];
-                int index = Array.FindIndex(palettePCX, c => CompareColorsFuzzy(currentColor, c, 0f));
+
+                int index = 255;
+                if (!CompareColorsFuzzy(currentColor, black, 0f)
+                    && !CompareColorsFuzzy(currentColor, white, 0f))
+                {
+                    index = Array.FindIndex(palettePCX, c => CompareColorsFuzzy(currentColor, c, 0f));
+                }
+                
                 byte clampedIndex = (byte) Math.Min(palette.Length - 1, Math.Max(0, index));
 
                 if (index != -1)
@@ -96,7 +107,13 @@ public static class ImageHelpers
                     RGB666Color currentColor = palette[colorIndex];
                     float threshold = startThreshold + (thresholdIteration * baseThreshold);
                     
-                    int index = Array.FindIndex(palettePCX, c => CompareColorsFuzzy(currentColor, c, threshold));
+                    int index = 255;
+                    if (!CompareColorsFuzzy(currentColor, black, threshold)
+                        && !CompareColorsFuzzy(currentColor, white, threshold))
+                    {
+                        index = Array.FindIndex(palettePCX, c => CompareColorsFuzzy(currentColor, c, threshold));
+                    }
+                    
                     if (index != -1)
                     {
                         zeroMappings.Remove(colorIndex);

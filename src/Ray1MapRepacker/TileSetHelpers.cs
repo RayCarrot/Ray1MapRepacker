@@ -374,7 +374,7 @@ public static class TileSetHelpers
         stringBuilder.Remove(stringBuilder.Length - 2, 2);
 
         if (count > 0)
-            ConsoleHelpers.WriteWarning($"No tileset match found for {count} opaque block indices: {stringBuilder}!");
+            ConsoleHelpers.WriteWarning($"No tileset match found for {count} block indices: {stringBuilder}!");
         
         return indexMapping;
     }
